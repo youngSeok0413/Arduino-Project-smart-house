@@ -1,6 +1,8 @@
 //libray here
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
+#include <DHT.h>
+#include <DHT_U.h>
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
@@ -39,6 +41,11 @@ unsigned int HUMIDITY = 0; //setting val(not real)
 #define MENU_BTN_PIN  3
 #define UP_BTN_PIN 6
 #define DOWN_BTN_PIN 7
+#define DHTPIN 2
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+int Relaypin1 = 4;
+int Relaypin2 = 5;
 
 /*system control : 자신이 사용하는 부분_ms*/
 /*reference : unsigned int SWITCH_MS = 0;*/
@@ -47,15 +54,20 @@ unsigned int HUMIDITY = 0; //setting val(not real)
 unsigned int CONTROL_PANNEL_MS = 0;
 bool IS_LCD_UPDATE = false;
 
+/*온도 습도 측정 후 제어*/
+unsigned int controlValue_MS = 0;
+
 void setup()
 {
   controlPannelBegin();
+  relayBegin();
+  dht.begin();
 }
 
 void loop()
 {
   ControlPannel();
-
+  ControlValue();
   delay(1);
 }
 
@@ -240,4 +252,44 @@ void printHumidity()
   lcd.print("HUMI:")
   lcd.print(HUMIDITY);
   lcd.print("%");
+}
+
+/*추가한 부분*/
+void ControlValue(){
+  if(controlValue_MS > 100) {
+  getValue();
+  onOffh(HUMIDITY);
+  onOfft(TEMPERATURE);
+
+  controlValue_MS = 0;
+  }
+  else
+    controlValue_MS++;
+}
+
+void relayBegin() {
+  Serial.begin(9600);
+  pinMode(Relaypin1, OUTPUT);
+  pinMode(Relaypin2, OUTPUT);
+}
+
+void getValue(){
+ TEMPERATURE = dht.readTemperature();
+ HUMIDITY = dht.readHumidity();
+}
+
+void onOffh(unsigned int h) {
+ if (h < 50 ) {
+   digitalWrite(Relaypin1, HIGH); //가습기 ON 
+ }else { 
+   digitalWrite(Relaypin1,LOW); 
+ }
+}
+
+void onOfft(unsigned int t) {
+ if (t < 15) {
+   digitalWrite(Relaypin2, HIGH); //온열패드 ON 
+ }else { 
+   digitalWrite(Relaypin2,LOW); 
+ }
 }
