@@ -33,15 +33,19 @@ unsigned int MODE = 0;
 /*temperature(range need to be decided), humidity(range need to be decided)*/
 unsigned int HOUR = 0;
 unsigned int MINUTE = 1;
-unsigned int TEMPERATURE = 0;
-unsigned int HUMIDITY = 0;
+unsigned int TEMPERATURE = 0; //setting val(not real)
+unsigned int HUMIDITY = 0; //setting val(not real)
 
 #define MENU_BTN_PIN  3
 #define UP_BTN_PIN 6
 #define DOWN_BTN_PIN 7
 
 /*system control : 자신이 사용하는 부분_ms*/
-unsigned int SWITCH_MS = 0;
+/*reference : unsigned int SWITCH_MS = 0;*/
+
+/*contorl pannel*/
+unsigned int CONTROL_PANNEL_MS = 0;
+bool IS_LCD_UPDATE = false;
 
 void setup()
 {
@@ -50,7 +54,7 @@ void setup()
 
 void loop()
 {
-  button();
+  ControlPannel();
 
   delay(1);
 }
@@ -90,6 +94,109 @@ void controlPannelBegin()
   pinMode(DOWN_BTN_PIN, INPUT_PULLUP);
 }
 
+void ControlPannel()
+{
+  setControlPannel();
+  lcdUpdate();
+}
+
+void setControlPannel()
+{
+  if(SWITCH_MS > 10)
+  {
+    if(digitalRead(MENU_BTN_PIN) == LOW)
+    {
+      MODE = MODE++%5;
+
+      IS_LCD_UPDATED = false;
+      CONTROL_PANNEL_MS = 0;
+    }
+    else if(digitalRead(UP_BTN_PIN) == LOW)
+    {
+      if(MODE == 1)
+      {
+        //hour
+        HOUR = HOUR++%24;
+        IS_LCD_UPDATED = false;
+      }
+      else if(MODE == 2)
+      {
+        //minute
+        MINUTE = MINUTE++%60;
+        IS_LCD_UPDATED = false;
+      }
+      else if(MODE == 3)
+      {
+        //temperature
+        TEMPERATURE = TEMPERATURE++%50; //max 49
+        IS_LCD_UPDATED = false; 
+      }
+      else if(MODE == 4)
+      {
+        //humidity
+        HUMIDITY = HUMIDITY++%100; //max 49
+        IS_LCD_UPDATED = false;
+      }
+
+      CONTROL_PANNEL_MS = 0;
+    }
+    else if(digitalRead(DOWN_BTN_PIN) == LOW)
+    {
+      if(MODE == 1)
+      {
+        //hour
+        HOUR--;
+        if(HOUR < 0) HOUR = 0;
+        IS_LCD_UPDATED = false;
+      }
+      else if(MODE == 2)
+      {
+        //minute
+        MINUTE--;
+        if(MINUTE < 0) MINUTE = 0;
+        IS_LCD_UPDATED = false;
+      }
+      else if(MODE == 3)
+      {
+        //temperature
+        TEMPERATURE--; //max 49
+        if(TEMPERATURE < 0) TEMPERATURE = 0;
+        IS_LCD_UPDATED = false; 
+      }
+      else if(MODE == 4)
+      {
+        //humidity
+        HUMIDITY--; //max 49
+        if(HUMIDITY < 0) HUMIDITY = 0;
+        IS_LCD_UPDATED = false;
+      }
+      
+      CONTROL_PANNEL_MS = 0;
+    }
+    else
+      CONTROL_PANNEL_MS++;
+  }  
+}
+
+void lcdUpdate()
+{
+  if(!IS_LCD_UPDATE)
+  {
+    if(MODE == 0)
+      printClock();
+    else if(MODE == 1)
+      printClock();
+    else if(MODE == 2)
+      printClock();
+    else if(MODE == 3)
+      printTemperature();
+    else if(MODE == 4)
+      printHumidity();
+
+    IS_LCD_UPDATE = true;
+  }
+}
+
 void printClock()
 {
   lcd.clear();
@@ -108,28 +215,29 @@ void printClock()
   if(MINUTE < 10)
   {
     lcd.print("0");
-    lcd.print(MINUTE);
+    lcd.println(MINUTE);
   }
   else
-    lcd.print(MINUTE);
+    lcd.println(MINUTE);
+  
+  lcd.print("TEMP"); //real data
+  lcd.print("C, ");
+  lcd.print("HUM"); //real data
+  lcd.print("%");
 }
 
-void setClockHour()
+void printTemperature()
 {
-  
+  lcd.clear();
+  lcd.print("TEMP:")
+  lcd.print(TEMPERATURE);
+  lcd.print("C");
 }
 
-void setClockMinute()
+void printHumidity()
 {
-  
-}
-
-void setTemperature()
-{
-  
-}
-
-void setHumidity()
-{
-  
+  lcd.clear();
+  lcd.print("HUMI:")
+  lcd.print(HUMIDITY);
+  lcd.print("%");
 }
