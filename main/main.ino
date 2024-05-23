@@ -3,8 +3,11 @@
 #include <LiquidCrystal_I2C.h>
 #include <DHT.h>
 #include <DHT_U.h>
+#include <Stepper.h>
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
+DHT dht(DHTPIN, DHTTYPE);
+Stepper stepper(STEPPERREVOL, STEPPER_PIN_4, STEPPER_PIN_3, STEPPER_PIN_2, STEPPER_PIN_1);
 
 /*
 write here pins that you use(unit : used pin)
@@ -21,53 +24,64 @@ switch :
 relay module : 
   pin : 4, 5
 
-temperature : 
+SETtING_Temperature : 
   pin : 2
 
 */
 
 /*display constant*/
 
-/*MENU MODE : 0(default, clock, temperature, humidity), 1 2(set clock : h, m), 3(set temperature), 4(set humidity)*/
+/*MENU MODE : 0(default, clock, SETtING_Temperature, SETTING_humidity), 1 2(set clock : h, m), 3(set SETtING_Temperature), 4(set SETTING_humidity)*/
 unsigned int MODE = 0;
 
 /*clock : hour : 0 ~ 23, minute : 0 ~ 59*/
-/*temperature(range need to be decided), humidity(range need to be decided)*/
+/*SETtING_Temperature(range need to be decided), SETTING_humidity(range need to be decided)*/
 unsigned int HOUR = 0;
 unsigned int MINUTE = 1;
-unsigned int TEMPERATURE = 0; //setting val(not real)
-unsigned int HUMIDITY = 0; //setting val(not real)
+unsigned int SETTING_TEMPERATURE = 0; //setting val(not real)
+unsigned int SETTING_HUMIDITY = 0; //setting val(not real)
 
 #define MENU_BTN_PIN  3
 #define UP_BTN_PIN 6
 #define DOWN_BTN_PIN 7
-#define DHTPIN 2
-#define DHTTYPE DHT11
-DHT dht(DHTPIN, DHTTYPE);
-int Relaypin1 = 4;
-int Relaypin2 = 5;
-
-/*system control : 자신이 사용하는 부분_ms*/
-/*reference : unsigned int SWITCH_MS = 0;*/
 
 /*contorl pannel*/
 unsigned int CONTROL_PANNEL_MS = 0;
 bool IS_LCD_UPDATE = false;
 
+/*feedback system(relay module)*/
+#define RELAYPIN1 4;
+#define RELAYPIN2 5;
+#define DHTPIN 2
+#define DHTTYPE DHT11
 /*온도 습도 측정 후 제어*/
-unsigned int controlValue_MS = 0;
+unsigned int FEED_SYSTEM_MS = 0;
+
+/*feedback system(motor module)*/
+#define STEPPER_PIN_1 8
+#define STEPPER_PIN_2 9
+#define STEPPER_PIN_3 10
+#define STEPPER_PIN_4 11
+
+#define STEPPERREVOL 1024
+#define STEPVEL 30
+
+#define FULLY_OPENED_NUM 100   
+
+unsigned int WINDOW_ROTATED_NUM
+bool IS_WINDOW_OPEN = false;
 
 void setup()
 {
-  controlPannelBegin();
-  relayBegin();
-  dht.begin();
+  ControlPannelInit();
+  FeedSystemInit();
 }
 
 void loop()
 {
   ControlPannel();
-  ControlValue();
+  FeedSystem();
+
   delay(1);
 }
 
@@ -91,7 +105,9 @@ void button()
 }
 */
 
-void controlPannelBegin()
+
+/*Contorl pannel*/
+void ControlPannelInit()
 {
   //serail init
   Serial.begin(9600);
@@ -139,14 +155,14 @@ void setControlPannel()
       }
       else if(MODE == 3)
       {
-        //temperature
-        TEMPERATURE = TEMPERATURE++%50; //max 49
+        //SETtING_Temperature
+        SETTING_TEMPERATURE = SETTING_TEMPERATURE++%50; //max 49
         IS_LCD_UPDATED = false; 
       }
       else if(MODE == 4)
       {
-        //humidity
-        HUMIDITY = HUMIDITY++%100; //max 49
+        //SETTING_humidity
+        SETTING_HUMIDITY = SETTING_HUMIDITY++%100; //max 49
         IS_LCD_UPDATED = false;
       }
 
@@ -170,16 +186,16 @@ void setControlPannel()
       }
       else if(MODE == 3)
       {
-        //temperature
-        TEMPERATURE--; //max 49
-        if(TEMPERATURE < 0) TEMPERATURE = 0;
+        //SETtING_Temperature
+        SETTING_TEMPERATURE--; //max 49
+        if(SETTING_TEMPERATURE < 0) SETTING_TEMPERATURE = 0;
         IS_LCD_UPDATED = false; 
       }
       else if(MODE == 4)
       {
-        //humidity
-        HUMIDITY--; //max 49
-        if(HUMIDITY < 0) HUMIDITY = 0;
+        //SETTING_humidity
+        SETTING_HUMIDITY--; //max 49
+        if(SETTING_HUMIDITY < 0) SETTING_HUMIDITY = 0;
         IS_LCD_UPDATED = false;
       }
       
@@ -201,9 +217,9 @@ void lcdUpdate()
     else if(MODE == 2)
       printClock();
     else if(MODE == 3)
-      printTemperature();
+      printSETTING_Temperature();
     else if(MODE == 4)
-      printHumidity();
+      printSETTING_Humidity();
 
     IS_LCD_UPDATE = true;
   }
@@ -238,58 +254,93 @@ void printClock()
   lcd.print("%");
 }
 
-void printTemperature()
+void printSETTING_Temperature()
 {
   lcd.clear();
   lcd.print("TEMP:")
-  lcd.print(TEMPERATURE);
+  lcd.print(SETTING_TEMPERATURE);
   lcd.print("C");
 }
 
-void printHumidity()
+void printSETTING_Humidity()
 {
   lcd.clear();
   lcd.print("HUMI:")
-  lcd.print(HUMIDITY);
+  lcd.print(SETTING_HUMIDITY);
   lcd.print("%");
 }
 
 /*추가한 부분*/
-void ControlValue(){
-  if(controlValue_MS > 100) {
-  getValue();
-  onOffh(HUMIDITY);
-  onOfft(TEMPERATURE);
+void FeedSystem(){
+  if(FEED_SYSTEM_MS > 100) {
+    
+    int temp = getTemperature();
+    int humi = getHumidity();
 
-  controlValue_MS = 0;
+    onOfft(temp);
+    onOffh(humi);
+    controlWindow(temp, humi);
+
+    FEED_SYSTEM_MS = 0;
   }
   else
-    controlValue_MS++;
+    FEED_SYSTEM_MS++;
 }
 
-void relayBegin() {
-  Serial.begin(9600);
-  pinMode(Relaypin1, OUTPUT);
-  pinMode(Relaypin2, OUTPUT);
+/*feedback system*/
+void FeedSystemInit() {
+  dht.begin();
+  pinMode(RELAYPIN1, OUTPUT);
+  pinMode(RELAYPIN2, OUTPUT);
+  stepper.setSpeed(STEPVEL); 
 }
 
-void getValue(){
- TEMPERATURE = dht.readTemperature();
- HUMIDITY = dht.readHumidity();
+//getvalue (온도 습도)
+int getTemperature()
+{
+  return dht.readSETTING_Temperature();
+}
+
+int getHumidity()
+{
+  return dht.readSETTING_Humidity();
 }
 
 void onOffh(unsigned int h) {
- if (h < 50 ) {
-   digitalWrite(Relaypin1, HIGH); //가습기 ON 
+ if (h < SETTING_HUMIDITY ) {
+   digitalWrite(RELAYPIN1, HIGH); //가습기 ON 
  }else { 
-   digitalWrite(Relaypin1,LOW); 
+   digitalWrite(RELAYPIN1, LOW); 
  }
 }
 
 void onOfft(unsigned int t) {
- if (t < 15) {
-   digitalWrite(Relaypin2, HIGH); //온열패드 ON 
+ if (t < SETTING_TEMPERATURE) {
+   digitalWrite(RELAYPIN2, HIGH); //온열패드 ON 
  }else { 
-   digitalWrite(Relaypin2,LOW); 
+   digitalWrite(RELAYPIN2,LOW); 
  }
 }
+
+void controlWindow(unsigned int t, unsigned int h)
+{
+  if(t > SETTING_TEMPERATURE || h > SETTING_HUMIDITY)
+  {
+    if(!IS_WINDOW_OPEN)
+    {
+      stepper.step(FULLY_OPENED_NUM);
+      IS_WINDOW_OPEN = true;
+    }
+  }
+  else
+  {
+    if(IS_WINDOW_OPEN)
+    {
+      stepper.step(-1*FULLY_OPENED_NUM);
+      IS_WINDOW_OPEN = false;
+    }
+  }
+}
+
+/*feedback system : motor*/
+
