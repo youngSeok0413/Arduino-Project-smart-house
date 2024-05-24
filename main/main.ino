@@ -5,6 +5,21 @@
 #include <DHT_U.h>
 #include <Stepper.h>
 
+#define MENU_BTN_PIN  3
+#define UP_BTN_PIN 6
+#define DOWN_BTN_PIN 7
+#define RELAYPIN1 4
+#define RELAYPIN2 5
+#define DHTPIN 2
+#define DHTTYPE DHT11
+#define STEPPER_PIN_1 8
+#define STEPPER_PIN_2 9
+#define STEPPER_PIN_3 10
+#define STEPPER_PIN_4 11
+#define STEPPERREVOL 1024
+#define STEPVEL 30
+#define FULLY_OPENED_NUM 100   
+
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 DHT dht(DHTPIN, DHTTYPE);
 Stepper stepper(STEPPERREVOL, STEPPER_PIN_4, STEPPER_PIN_3, STEPPER_PIN_2, STEPPER_PIN_1);
@@ -41,34 +56,17 @@ unsigned int MINUTE = 1;
 unsigned int SETTING_TEMPERATURE = 0; //setting val(not real)
 unsigned int SETTING_HUMIDITY = 0; //setting val(not real)
 
-#define MENU_BTN_PIN  3
-#define UP_BTN_PIN 6
-#define DOWN_BTN_PIN 7
-
 /*contorl pannel*/
 unsigned int CONTROL_PANNEL_MS = 0;
-bool IS_LCD_UPDATE = false;
+bool IS_LCD_UPDATED = false;
 
 /*feedback system(relay module)*/
-#define RELAYPIN1 4;
-#define RELAYPIN2 5;
-#define DHTPIN 2
-#define DHTTYPE DHT11
 /*온도 습도 측정 후 제어*/
 unsigned int FEED_SYSTEM_MS = 0;
 
 /*feedback system(motor module)*/
-#define STEPPER_PIN_1 8
-#define STEPPER_PIN_2 9
-#define STEPPER_PIN_3 10
-#define STEPPER_PIN_4 11
 
-#define STEPPERREVOL 1024
-#define STEPVEL 30
-
-#define FULLY_OPENED_NUM 100   
-
-unsigned int WINDOW_ROTATED_NUM
+unsigned int WINDOW_ROTATED_NUM;
 bool IS_WINDOW_OPEN = false;
 
 void setup()
@@ -130,7 +128,7 @@ void ControlPannel()
 
 void setControlPannel()
 {
-  if(SWITCH_MS > 10)
+  if(CONTROL_PANNEL_MS > 10)
   {
     if(digitalRead(MENU_BTN_PIN) == LOW)
     {
@@ -208,7 +206,7 @@ void setControlPannel()
 
 void lcdUpdate()
 {
-  if(!IS_LCD_UPDATE)
+  if(!IS_LCD_UPDATED)
   {
     if(MODE == 0)
       printClock();
@@ -221,7 +219,7 @@ void lcdUpdate()
     else if(MODE == 4)
       printSETTING_Humidity();
 
-    IS_LCD_UPDATE = true;
+    IS_LCD_UPDATED = true;
   }
 }
 
@@ -257,7 +255,7 @@ void printClock()
 void printSETTING_Temperature()
 {
   lcd.clear();
-  lcd.print("TEMP:")
+  lcd.print("TEMP:");
   lcd.print(SETTING_TEMPERATURE);
   lcd.print("C");
 }
@@ -265,7 +263,7 @@ void printSETTING_Temperature()
 void printSETTING_Humidity()
 {
   lcd.clear();
-  lcd.print("HUMI:")
+  lcd.print("HUMI:");
   lcd.print(SETTING_HUMIDITY);
   lcd.print("%");
 }
@@ -298,12 +296,12 @@ void FeedSystemInit() {
 //getvalue (온도 습도)
 int getTemperature()
 {
-  return dht.readSETTING_Temperature();
+  return dht.readTemperature();
 }
 
 int getHumidity()
 {
-  return dht.readSETTING_Humidity();
+  return dht.readHumidity();
 }
 
 void onOffh(unsigned int h) {
@@ -343,4 +341,3 @@ void controlWindow(unsigned int t, unsigned int h)
 }
 
 /*feedback system : motor*/
-
