@@ -17,14 +17,15 @@
 #define STEPPER_PIN_3 10
 #define STEPPER_PIN_4 11
 #define STEPPERREVOL 1024
-#define STEPVEL 30
+#define STEPVEL 14
 #define FULLY_OPENED_NUM 100   
 #define ONE_MINUTE 59999//59999
+#define MARGIN 2
 
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 DHT dht(DHTPIN, DHTTYPE);
-Stepper stepper(STEPPERREVOL, STEPPER_PIN_4, STEPPER_PIN_3, STEPPER_PIN_2, STEPPER_PIN_1);
+Stepper stepper(2048, STEPPER_PIN_4, STEPPER_PIN_2, STEPPER_PIN_3, STEPPER_PIN_1);
 
 /*
 write here pins that you use(unit : used pin)
@@ -53,8 +54,8 @@ unsigned int MODE = 0;
 
 /*clock : hour : 0 ~ 23, minute : 0 ~ 59*/
 /*SETtING_Temperature(range need to be decided), SETTING_humidity(range need to be decided)*/
-unsigned int HOUR = 0;
-unsigned int MINUTE = 1;
+unsigned int HOUR = 12;
+unsigned int MINUTE = 0;
 unsigned int SETTING_TEMPERATURE = 0; //setting val(not real)
 unsigned int SETTING_HUMIDITY = 0; //setting val(not real)
 
@@ -69,8 +70,9 @@ unsigned int FEED_SYSTEM_MS = 0;
 
 /*feedback system(motor module)*/
 
-unsigned int WINDOW_ROTATED_NUM;
+int WINDOW_ROTATED_NUM = 2048 * 5;
 bool IS_WINDOW_OPEN = false;
+bool IS_SETTING = false;
 
 void setup()
 {
@@ -82,31 +84,11 @@ void loop()
 {
   ControlPannel();
   Clock();
-  FeedSystem();
-
-  delay(1);
-}
-
-/*control : display, time, variable control*/
-
-/*
-
-reference
-
-void button()
-{
-  if(SWITCH_MS > 100)
+  if(!IS_SETTING)
   {
-    if(digitalRead(MENU_BTN_PIN) == LOW)
-      Serial.println("MENU_BTN");
-
-    SWITCH_MS = 0;
-  }
-  else
-    SWITCH_MS++;
+    FeedSystem();
+  } 
 }
-*/
-
 
 /*Contorl pannel*/
 void ControlPannelInit()
@@ -139,6 +121,8 @@ void setControlPannel()
       MODE = (MODE+1)%5;
 
       IS_LCD_UPDATED = false;
+      if(MODE != 0) IS_SETTING = true;
+      else IS_SETTING = false;
       CONTROL_PANNEL_MS = 0;
 
       delay(200);
@@ -276,7 +260,10 @@ void printClock()
   }
   else
     lcd.print(MINUTE);
-  
+
+  if(IS_WINDOW_OPEN) lcd.print(" OPEN");
+  else lcd.print(" CLOSE");
+    
   lcd.setCursor(0, 1);
 
   lcd.print("TEMP:"); //real data
@@ -311,7 +298,7 @@ void FeedSystem(){
 
     onOfft(temp);
     onOffh(humi);
-    //controlWindow(temp, humi);
+    controlWindow(temp, humi);
 
     FEED_SYSTEM_MS = 0;
   }
@@ -324,7 +311,11 @@ void FeedSystemInit() {
   dht.begin();
   pinMode(RELAYPIN1, OUTPUT);
   pinMode(RELAYPIN2, OUTPUT);
-  stepper.setSpeed(STEPVEL); 
+
+  stepper.setSpeed(STEPVEL);
+
+  SETTING_HUMIDITY = getHumidity();
+  SETTING_TEMPERATURE = getTemperature(); 
 }
 
 //getvalue (온도 습도)
@@ -339,28 +330,40 @@ int getHumidity()
 }
 
 void onOffh(unsigned int h) {
- if (h < SETTING_HUMIDITY ) {
-   digitalWrite(RELAYPIN1, HIGH); //가습기 ON 
+ if (h < (SETTING_HUMIDITY - MARGIN)) {
+   digitalWrite(RELAYPIN1, HIGH); //가습기 ON
+   Serial.println("humid up"); 
  }else { 
-   digitalWrite(RELAYPIN1, LOW); 
+   digitalWrite(RELAYPIN1, LOW);
+   Serial.println("humid down"); 
  }
 }
 
 void onOfft(unsigned int t) {
- if (t < SETTING_TEMPERATURE) {
-   digitalWrite(RELAYPIN2, HIGH); //온열패드 ON 
+ if (t < (SETTING_TEMPERATURE - MARGIN)) {
+   digitalWrite(RELAYPIN2, HIGH); //온열패드 ON
+   Serial.println("temp up"); 
  }else { 
-   digitalWrite(RELAYPIN2,LOW); 
+   digitalWrite(RELAYPIN2,LOW);
+   Serial.println("temp down"); 
  }
 }
 
 void controlWindow(unsigned int t, unsigned int h)
 {
-  if(t > SETTING_TEMPERATURE || h > SETTING_HUMIDITY)
+  if(t > (SETTING_TEMPERATURE + MARGIN) || h > (SETTING_HUMIDITY +  + MARGIN))
   {
-    if(!IS_WINDOW_OPEN)
-    {
-      stepper.step(FULLY_OPENED_NUM);
+    if(!IS_WINDOW_OPEN){
+    
+      stepper.step(WINDOW_ROTATED_NUM); //anti clock
+      
+      Serial.println("open");
+
+      digitalWrite(STEPPER_PIN_1, LOW);
+      digitalWrite(STEPPER_PIN_2, LOW);
+      digitalWrite(STEPPER_PIN_3, LOW);
+      digitalWrite(STEPPER_PIN_4, LOW);
+
       IS_WINDOW_OPEN = true;
     }
   }
@@ -368,7 +371,15 @@ void controlWindow(unsigned int t, unsigned int h)
   {
     if(IS_WINDOW_OPEN)
     {
-      stepper.step(-1*FULLY_OPENED_NUM);
+      stepper.step(-1*WINDOW_ROTATED_NUM); //
+      
+      Serial.println("close");
+
+      digitalWrite(STEPPER_PIN_1, LOW);
+      digitalWrite(STEPPER_PIN_2, LOW);
+      digitalWrite(STEPPER_PIN_3, LOW);
+      digitalWrite(STEPPER_PIN_4, LOW);
+
       IS_WINDOW_OPEN = false;
     }
   }
