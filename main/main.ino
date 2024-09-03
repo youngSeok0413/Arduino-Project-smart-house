@@ -70,7 +70,7 @@ unsigned int FEED_SYSTEM_MS = 0;
 
 /*feedback system(motor module)*/
 
-int WINDOW_ROTATED_NUM = 2048 * 5;
+int WINDOW_ROTATED_NUM = 2048 *2;
 bool IS_WINDOW_OPEN = false;
 bool IS_SETTING = false;
 
@@ -331,10 +331,10 @@ int getHumidity()
 
 void onOffh(unsigned int h) {
  if (h < (SETTING_HUMIDITY - MARGIN)) {
-   digitalWrite(RELAYPIN1, HIGH); //가습기 ON
+   digitalWrite(RELAYPIN1, LOW); //가습기 ON
    Serial.println("humid up"); 
  }else { 
-   digitalWrite(RELAYPIN1, LOW);
+   digitalWrite(RELAYPIN1, HIGH);
    Serial.println("humid down"); 
  }
 }
@@ -351,11 +351,11 @@ void onOfft(unsigned int t) {
 
 void controlWindow(unsigned int t, unsigned int h)
 {
-  if(t > (SETTING_TEMPERATURE + MARGIN) || h > (SETTING_HUMIDITY +  + MARGIN))
+  if(t > (SETTING_TEMPERATURE + MARGIN) || h > (SETTING_HUMIDITY + MARGIN))
   {
     if(!IS_WINDOW_OPEN){
     
-      stepper.step(WINDOW_ROTATED_NUM); //anti clock
+      stepper.step(-1*WINDOW_ROTATED_NUM); //anti clock
       
       Serial.println("open");
 
@@ -371,7 +371,7 @@ void controlWindow(unsigned int t, unsigned int h)
   {
     if(IS_WINDOW_OPEN)
     {
-      stepper.step(-1*WINDOW_ROTATED_NUM); //
+      stepper.step(WINDOW_ROTATED_NUM); //
       
       Serial.println("close");
 
